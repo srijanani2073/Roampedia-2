@@ -8,11 +8,9 @@ import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import { FaCheck, FaStar, FaPlus } from "react-icons/fa";
-
 import WeatherCard from "./WeatherCard";
-import NewsFeed from "./NewsFeed";
-import TriviaCard from "./TriviaCard";
-import CurrencyConverter from "./CurrencyConverter";
+import NewsFeed from "../NewsFeed";
+import CurrencyConverter from "../CurrencyConverter";
 import TemperatureChart from "./TemperatureChart";
 import TravelInsights from "./TravelInsights";
 import BestTimeToVisit from "./BestTimeToVisit";
@@ -20,28 +18,13 @@ import TravelListManager from "./TravelListManager";
 import ExperienceModal from "./ExperienceModal";
 import AddExperienceForm from "./AddExperienceForm";
 import AuthModal from "../AuthModal";
+import TriviaCard from "./TriviaCard";
 
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 
 import "./CountryDashboard.css";
 import "leaflet/dist/leaflet.css";
-
-/**
- * Right-side drawer Country Dashboard (interactive mini-map using Leaflet)
- *
- * Props:
- * - countryCode (ISO alpha-3) required
- * - countryName (optional)
- * - onClose() required
- * - cacheTTL (ms) optional: default 15 minutes
- *
- * Changes in this version:
- * - ✅ ALL database operations (Visited, Wishlist, Experiences) now require authentication
- * - ✅ Added login prompts for unauthenticated users
- * - ✅ User ID automatically extracted from auth context
- * - ✅ Using apiClient for authenticated backend requests
- */
 
 export default function CountryDashboard({
   countryCode,
@@ -701,7 +684,10 @@ export default function CountryDashboard({
                   <WeatherCard weather={weather} capital={country?.capital} />
                   <TemperatureChart weather={weather} latlng={country?.latlng} />
                   <TriviaCard wikidata={wikidataFacts} wikipedia={wikiSummary} country={country} />
-                  <TravelInsights />
+                  <TravelInsights 
+                    countryCode={country?.cca3 || countryCode}
+                    countryName={country?.name || countryName}
+                  />
                 </div>
 
                 <div className="right-col">
@@ -753,19 +739,10 @@ export default function CountryDashboard({
                   />
 
                   <BestTimeToVisit
-                    lat={country?.latlng?.[0]}
-                    lon={country?.latlng?.[1]}
+                    latitude={country?.latlng?.[0]}
+                    longitude={country?.latlng?.[1]}
                     countryName={country?.name}
                   />
-
-                  <div className="quiz-btn-wrap">
-                    <button
-                      onClick={() => navigate("/trivia")}
-                      className="btn quiz-btn"
-                    >
-                      🎯 Take Country Quiz →
-                    </button>
-                  </div>
                 </div>
               </div>
             )}

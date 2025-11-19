@@ -13,7 +13,8 @@ import authRoutes from "./routes/authRoutes.js";
 import userStatsRoutes from "./routes/userStatsRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
-import itineraryRoutes from "./routes/itineraryRoutes.js"; // NEW
+import itineraryRoutes from "./routes/itineraryRoutes.js"; 
+import countryInsightsRoutes from "./routes/countryInsightsRoutes.js"
 
 dotenv.config();
 
@@ -71,18 +72,11 @@ app.use("/api/experiences", experienceRoutes);
 app.use("/api/expenses", expensesRoutes);
 app.use("/api/recommendations", recommendationRoutes);
 app.use("/api/ai-recommendations", aiRecommendationRoutes);
-
-// User stats and profile routes
-app.use("/api/user-stats", userStatsRoutes);
-
-// Admin analytics routes
-app.use("/api/admin", adminRoutes);
-
-// Report generation routes
 app.use("/api/reports", reportRoutes);
-
-// NEW: Itinerary planning routes
 app.use("/api/itineraries", itineraryRoutes);
+app.use("/api/user-stats", userStatsRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/country-insights", countryInsightsRoutes);
 
 // === Health Check ===
 app.get("/", (req, res) =>

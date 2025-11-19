@@ -21,8 +21,9 @@ function App() {
       <Navbar />
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/news" element={<NewsFeed />} />
-        <Route path="/currency" element={<CurrencyConverter />} />
+        {/* Pass standalone={true} prop for dedicated pages */}
+        <Route path="/news" element={<NewsFeed standalone={true} />} />
+        <Route path="/currency" element={<CurrencyConverter standalone={true} />} />
         <Route path="/itinerary" element={<ItineraryModule />} />
         <Route path="/itineraryplanner" element={<ItineraryPlanner />} />
         <Route path="/itinerarydashboard" element={<ItineraryDashboard />} />
