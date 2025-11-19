@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import {
   ResponsiveContainer,
   BarChart,
@@ -12,6 +12,8 @@ import {
 } from "recharts";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { useAuth } from "../contexts/AuthContext";
+import apiClient from "../utils/api";
 import "./ItineraryPlanner.css";
 
 // === Mock MongoDB-like attraction data ===
@@ -38,13 +40,27 @@ const MOCK_ATTRACTIONS = {
     { name: "Mount Fuji", city: "Shizuoka", hours: 6, cost: 20 },
     { name: "Nara Deer Park", city: "Nara", hours: 2, cost: 5 },
   ],
+  Spain: [
+    { name: "Sagrada Familia", city: "Barcelona", hours: 3, cost: 26 },
+    { name: "Park Güell", city: "Barcelona", hours: 2, cost: 10 },
+    { name: "Prado Museum", city: "Madrid", hours: 3, cost: 15 },
+    { name: "Alhambra", city: "Granada", hours: 4, cost: 18 },
+    { name: "Plaza Mayor", city: "Madrid", hours: 2, cost: 0 },
+  ],
+  Thailand: [
+    { name: "Grand Palace", city: "Bangkok", hours: 3, cost: 12 },
+    { name: "Phi Phi Islands", city: "Phuket", hours: 6, cost: 35 },
+    { name: "Wat Pho", city: "Bangkok", hours: 2, cost: 5 },
+    { name: "Chiang Mai Night Bazaar", city: "Chiang Mai", hours: 3, cost: 0 },
+    { name: "Ayutthaya Historical Park", city: "Ayutthaya", hours: 4, cost: 8 },
+  ],
 };
 
 const HOURS_PER_DAY = 8;
-
 const COLORS = ["#06b6d4", "#4f46e5", "#10b981", "#f59e0b", "#ef4444"];
 
 export default function ItineraryPlanner() {
+  const { user } = useAuth();
   const [startPoint, setStartPoint] = useState("");
   const [destination, setDestination] = useState("France");
   const [startDate, setStartDate] = useState("");
@@ -53,7 +69,16 @@ export default function ItineraryPlanner() {
   const [itinerary, setItinerary] = useState([]);
   const [expenses, setExpenses] = useState({});
   const [loading, setLoading] = useState(false);
+  const [savedItineraries, setSavedItineraries] = useState([]);
+  const [currentItineraryId, setCurrentItineraryId] = useState(null);
   const visualRef = useRef(null);
+
+  // Load saved itineraries on mount
+  useEffect(() => {
+    if (user) {
+      loadSavedItineraries();
+    }
+  }, [user]);
 
   const tripDays = useMemo(() => {
     if (!startDate || !endDate) return 0;
@@ -63,10 +88,25 @@ export default function ItineraryPlanner() {
     return diff > 0 ? diff : 0;
   }, [startDate, endDate]);
 
+  // Load saved itineraries
+  const loadSavedItineraries = async () => {
+    try {
+      const response = await apiClient.get("/api/itineraries");
+      setSavedItineraries(response.data.itineraries);
+    } catch (error) {
+      console.error("Error loading itineraries:", error);
+    }
+  };
+
   // === Generate itinerary from mock data ===
   const handleGenerate = () => {
-    if (!destination || !startDate || !endDate || !budget)
+    if (!destination || !startDate || !endDate || !budget) {
       return alert("Please fill all fields");
+    }
+
+    if (!user) {
+      return alert("Please login to save your itinerary!");
+    }
 
     setLoading(true);
     setTimeout(() => {
@@ -89,7 +129,9 @@ export default function ItineraryPlanner() {
           }
         }
         if (!assigned)
-          daysArr[Math.floor(Math.random() * daysArr.length)].activities.push(att);
+          daysArr[Math.floor(Math.random() * daysArr.length)].activities.push(
+            att
+          );
       }
 
       // simple expense breakdown
@@ -105,6 +147,122 @@ export default function ItineraryPlanner() {
       setItinerary(daysArr.map((d) => d.activities));
       setLoading(false);
     }, 600);
+  };
+
+  // === Save itinerary to backend ===
+  const handleSaveItinerary = async () => {
+    if (!user) {
+      return alert("Please login to save your itinerary!");
+    }
+
+    if (itinerary.length === 0) {
+      return alert("Please generate an itinerary first!");
+    }
+
+    try {
+      setLoading(true);
+
+      // Format daily plan for backend
+      const dailyPlan = itinerary.map((day, index) => ({
+        dayNumber: index + 1,
+        activities: day,
+      }));
+
+      const itineraryData = {
+        destination,
+        startPoint,
+        startDate,
+        endDate,
+        tripDays,
+        budget,
+        expenses,
+        dailyPlan,
+        status: "planned",
+      };
+
+      let response;
+      if (currentItineraryId) {
+        // Update existing
+        response = await apiClient.put(
+          `/api/itineraries/${currentItineraryId}`,
+          itineraryData
+        );
+        alert("Itinerary updated successfully!");
+      } else {
+        // Create new
+        response = await apiClient.post("/api/itineraries", itineraryData);
+        alert("Itinerary saved successfully!");
+        setCurrentItineraryId(response.data.itinerary.id);
+      }
+
+      // Reload saved itineraries
+      await loadSavedItineraries();
+    } catch (error) {
+      console.error("Error saving itinerary:", error);
+      alert("Failed to save itinerary: " + (error.response?.data?.error || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load a saved itinerary
+  const handleLoadItinerary = async (id) => {
+    try {
+      setLoading(true);
+      const response = await apiClient.get(`/api/itineraries/${id}`);
+      const saved = response.data;
+
+      setDestination(saved.destination);
+      setStartPoint(saved.startPoint || "");
+      setStartDate(saved.startDate.split("T")[0]);
+      setEndDate(saved.endDate.split("T")[0]);
+      setBudget(saved.budget);
+      setExpenses(saved.expenses);
+      setItinerary(saved.dailyPlan.map((day) => day.activities));
+      setCurrentItineraryId(id);
+
+      alert("Itinerary loaded!");
+    } catch (error) {
+      console.error("Error loading itinerary:", error);
+      alert("Failed to load itinerary");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Delete a saved itinerary
+  const handleDeleteItinerary = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this itinerary?")) {
+      return;
+    }
+
+    try {
+      await apiClient.delete(`/api/itineraries/${id}`);
+      alert("Itinerary deleted successfully!");
+      await loadSavedItineraries();
+      
+      // Clear current itinerary if it's the one being deleted
+      if (currentItineraryId === id) {
+        setCurrentItineraryId(null);
+        setItinerary([]);
+        setExpenses({});
+      }
+    } catch (error) {
+      console.error("Error deleting itinerary:", error);
+      alert("Failed to delete itinerary");
+    }
+  };
+
+  // Create new itinerary (reset form)
+  const handleNewItinerary = () => {
+    setStartPoint("");
+    setDestination("France");
+    setStartDate("");
+    setEndDate("");
+    setBudget(2000);
+    setItinerary([]);
+    setExpenses({});
+    setCurrentItineraryId(null);
   };
 
   // === Charts ===
@@ -160,6 +318,17 @@ export default function ItineraryPlanner() {
       <div className="form-section">
         <h2>Itinerary Planner</h2>
 
+        {user ? (
+          <div className="user-info">
+            <p>✅ Logged in as: <strong>{user.email}</strong></p>
+            <p className="info-text">Your itineraries will be saved to your account</p>
+          </div>
+        ) : (
+          <div className="auth-warning">
+            <p>⚠️ Please login to save your itineraries</p>
+          </div>
+        )}
+
         <label>Start Point</label>
         <input
           value={startPoint}
@@ -168,7 +337,10 @@ export default function ItineraryPlanner() {
         />
 
         <label>Destination</label>
-        <select value={destination} onChange={(e) => setDestination(e.target.value)}>
+        <select
+          value={destination}
+          onChange={(e) => setDestination(e.target.value)}
+        >
           {Object.keys(MOCK_ATTRACTIONS).map((c) => (
             <option key={c}>{c}</option>
           ))}
@@ -200,14 +372,68 @@ export default function ItineraryPlanner() {
           onChange={(e) => setBudget(Number(e.target.value))}
         />
 
-        <button className="generate" onClick={handleGenerate} disabled={loading}>
+        <button
+          className="generate"
+          onClick={handleGenerate}
+          disabled={loading}
+        >
           {loading ? "Generating..." : "Generate Itinerary"}
         </button>
 
         {itinerary.length > 0 && (
-          <div className="export-buttons">
-            <button onClick={exportCSV}>Download CSV</button>
-            <button onClick={exportPDF}>Download PDF</button>
+          <div className="action-buttons">
+            {user && (
+              <>
+                <button onClick={handleSaveItinerary} className="save-btn">
+                  💾 {currentItineraryId ? "Update" : "Save"} Itinerary
+                </button>
+                <button onClick={handleNewItinerary} className="new-btn">
+                  ➕ New Itinerary
+                </button>
+              </>
+            )}
+            <button onClick={exportCSV}>📥 Download CSV</button>
+            <button onClick={exportPDF}>📄 Download PDF</button>
+          </div>
+        )}
+
+        {/* Saved Itineraries List */}
+        {user && savedItineraries.length > 0 && (
+          <div className="saved-itineraries">
+            <h3>Your Saved Itineraries ({savedItineraries.length})</h3>
+            <div className="saved-list">
+              {savedItineraries.map((saved) => (
+                <div
+                  key={saved.id}
+                  className={`saved-item ${
+                    currentItineraryId === saved.id ? "active" : ""
+                  }`}
+                >
+                  <div className="saved-info">
+                    <strong>{saved.destination}</strong>
+                    <span className="saved-dates">
+                      {new Date(saved.startDate).toLocaleDateString()} -{" "}
+                      {new Date(saved.endDate).toLocaleDateString()}
+                    </span>
+                    <span className="saved-budget">${saved.budget}</span>
+                  </div>
+                  <div className="saved-actions">
+                    <button
+                      onClick={() => handleLoadItinerary(saved.id)}
+                      className="load-btn"
+                    >
+                      📂 Load
+                    </button>
+                    <button
+                      onClick={() => handleDeleteItinerary(saved.id)}
+                      className="delete-btn"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

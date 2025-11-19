@@ -10,9 +10,10 @@ import expensesRoutes from "./routes/expensesRoutes.js";
 import recommendationRoutes from "./routes/recommendationRoutes.js";
 import aiRecommendationRoutes from "./routes/aiRecommendationRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
-import userStatsRoutes from "./routes/userStatsRoutes.js"; // NEW
-import adminRoutes from "./routes/adminRoutes.js"; // NEW
-import reportRoutes from "./routes/reportRoutes.js"; // NEW
+import userStatsRoutes from "./routes/userStatsRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
+import itineraryRoutes from "./routes/itineraryRoutes.js"; // NEW
 
 dotenv.config();
 
@@ -71,14 +72,17 @@ app.use("/api/expenses", expensesRoutes);
 app.use("/api/recommendations", recommendationRoutes);
 app.use("/api/ai-recommendations", aiRecommendationRoutes);
 
-// NEW: User stats and profile routes
+// User stats and profile routes
 app.use("/api/user-stats", userStatsRoutes);
 
-// NEW: Admin analytics routes
+// Admin analytics routes
 app.use("/api/admin", adminRoutes);
 
-// NEW: Report generation routes
+// Report generation routes
 app.use("/api/reports", reportRoutes);
+
+// NEW: Itinerary planning routes
+app.use("/api/itineraries", itineraryRoutes);
 
 // === Health Check ===
 app.get("/", (req, res) =>
@@ -86,8 +90,13 @@ app.get("/", (req, res) =>
     ok: true, 
     service: "roampedia-backend",
     auth: "enabled",
-    features: ["user-profiles", "admin-dashboard", "reports"],
-    version: "3.0.0"
+    features: [
+      "user-profiles", 
+      "admin-dashboard", 
+      "reports", 
+      "itinerary-planner" // NEW
+    ],
+    version: "3.1.0"
   })
 );
 
@@ -107,6 +116,7 @@ app.listen(PORT, () => {
   console.log(`📊 User Profiles: Enabled`);
   console.log(`👑 Admin Dashboard: Enabled`);
   console.log(`📄 Reports: Enabled`);
+  console.log(`🗺️  Itinerary Planner: Enabled`); // NEW
   console.log(`📍 API: http://localhost:${PORT}`);
   console.log(`🌐 CORS: ${CORS_ORIGIN}`);
 });

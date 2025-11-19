@@ -5,6 +5,7 @@ import Visited from "../models/Visited.js";
 import Wishlist from "../models/Wishlist.js";
 import UserExperience from "../models/UserExperience.js";
 import TravelNote from "../models/TravelNote.js";
+import Itinerary from "../models/Itinerary.js";
 import { auth, isAdmin } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
@@ -200,6 +201,125 @@ router.get("/statistics", auth, async (req, res) => {
   }
 });
 
+// NEW: Itinerary Planning Report
+router.get("/itinerary-report", auth, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    const [user, itineraries] = await Promise.all([
+      User.findById(userId).select("-password"),
+      Itinerary.find({ userId }).sort({ startDate: -1 })
+    ]);
+
+    const doc = new PDFDocument({ margin: 50 });
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename=itinerary-report.pdf');
+    
+    doc.pipe(res);
+
+    // Title
+    doc.fontSize(24).font('Helvetica-Bold').text('Itinerary Planning Report', { align: 'center' });
+    doc.moveDown();
+    doc.fontSize(12).font('Helvetica').text(`Generated for: ${user.email}`, { align: 'center' });
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, { align: 'center' });
+    doc.moveDown(2);
+
+    // Overview Section
+    doc.fontSize(16).font('Helvetica-Bold').text('Planning Overview');
+    doc.moveDown(0.5);
+    doc.fontSize(12).font('Helvetica');
+    
+    const totalBudget = itineraries.reduce((sum, i) => sum + i.budget, 0);
+    const totalDays = itineraries.reduce((sum, i) => sum + i.tripDays, 0);
+    const avgBudget = itineraries.length > 0 ? Math.round(totalBudget / itineraries.length) : 0;
+    
+    doc.text(`Total Itineraries: ${itineraries.length}`);
+    doc.text(`Total Days Planned: ${totalDays}`);
+    doc.text(`Total Budget: $${totalBudget.toLocaleString()}`);
+    doc.text(`Average Budget per Trip: $${avgBudget.toLocaleString()}`);
+    doc.moveDown(2);
+
+    // Destination Breakdown
+    const destinations = {};
+    itineraries.forEach(i => {
+      destinations[i.destination] = (destinations[i.destination] || 0) + 1;
+    });
+
+    doc.fontSize(16).font('Helvetica-Bold').text('Destinations');
+    doc.moveDown(0.5);
+    Object.entries(destinations).forEach(([dest, count]) => {
+      doc.fontSize(12).font('Helvetica').text(`${dest}: ${count} trip(s)`);
+    });
+    doc.moveDown(2);
+
+    // Detailed Itineraries
+    if (itineraries.length > 0) {
+      doc.addPage();
+      doc.fontSize(16).font('Helvetica-Bold').text('Detailed Itineraries');
+      doc.moveDown();
+
+      itineraries.forEach((itinerary, index) => {
+        if (index > 0 && index % 2 === 0) doc.addPage();
+
+        doc.fontSize(14).font('Helvetica-Bold').text(`${index + 1}. ${itinerary.destination}`);
+        doc.moveDown(0.3);
+        
+        doc.fontSize(11).font('Helvetica');
+        doc.text(`Dates: ${new Date(itinerary.startDate).toLocaleDateString()} - ${new Date(itinerary.endDate).toLocaleDateString()}`);
+        doc.text(`Duration: ${itinerary.tripDays} days`);
+        doc.text(`Budget: $${itinerary.budget.toLocaleString()}`);
+        doc.text(`Status: ${itinerary.status.charAt(0).toUpperCase() + itinerary.status.slice(1)}`);
+        
+        // Expense Breakdown
+        doc.moveDown(0.3);
+        doc.fontSize(10).font('Helvetica-Bold').text('Budget Breakdown:');
+        doc.fontSize(10).font('Helvetica');
+        Object.entries(itinerary.expenses).forEach(([category, amount]) => {
+          doc.text(`  ${category}: $${amount.toLocaleString()}`);
+        });
+
+        // Activities Summary
+        const totalActivities = itinerary.dailyPlan.reduce((sum, day) => sum + day.activities.length, 0);
+        doc.moveDown(0.3);
+        doc.text(`Total Activities: ${totalActivities}`);
+        
+        doc.moveDown(1);
+      });
+    }
+
+    // Expense Analysis
+    doc.addPage();
+    doc.fontSize(16).font('Helvetica-Bold').text('Expense Analysis');
+    doc.moveDown();
+
+    const totalExpenses = {
+      Accommodation: 0,
+      Transport: 0,
+      Food: 0,
+      Activities: 0,
+      Misc: 0
+    };
+
+    itineraries.forEach(i => {
+      Object.keys(i.expenses).forEach(category => {
+        totalExpenses[category] += i.expenses[category];
+      });
+    });
+
+    doc.fontSize(12).font('Helvetica');
+    Object.entries(totalExpenses).forEach(([category, amount]) => {
+      const percentage = totalBudget > 0 ? ((amount / totalBudget) * 100).toFixed(1) : 0;
+      doc.text(`${category}: $${amount.toLocaleString()} (${percentage}%)`);
+    });
+
+    doc.end();
+  } catch (error) {
+    console.error("Error generating itinerary report:", error);
+    res.status(500).json({ error: "Failed to generate report" });
+  }
+});
+
 // ========================================
 // ADMIN REPORTS
 // ========================================
@@ -226,15 +346,16 @@ router.get("/admin-reports/users-summary", auth, isAdmin, async (req, res) => {
 
     // User list
     for (const user of users) {
-      const [visited, wishlist, experiences] = await Promise.all([
+      const [visited, wishlist, experiences, itineraries] = await Promise.all([
         Visited.countDocuments({ userId: user._id.toString() }),
         Wishlist.countDocuments({ userId: user._id.toString() }),
-        UserExperience.countDocuments({ userId: user._id.toString() })
+        UserExperience.countDocuments({ userId: user._id.toString() }),
+        Itinerary.countDocuments({ userId: user._id.toString() })
       ]);
 
       doc.fontSize(11).font('Helvetica');
       doc.text(`${user.email} - Joined: ${new Date(user.createdAt).toLocaleDateString()}`);
-      doc.text(`  Visited: ${visited} | Wishlist: ${wishlist} | Experiences: ${experiences}`);
+      doc.text(`  Visited: ${visited} | Wishlist: ${wishlist} | Experiences: ${experiences} | Itineraries: ${itineraries}`);
       doc.moveDown(0.5);
     }
 
@@ -292,10 +413,11 @@ router.get("/admin-reports/engagement", auth, isAdmin, async (req, res) => {
     const engagement = await Promise.all(
       users.map(async (user) => {
         const userId = user._id.toString();
-        const [visited, wishlist, experiences] = await Promise.all([
+        const [visited, wishlist, experiences, itineraries] = await Promise.all([
           Visited.countDocuments({ userId }),
           Wishlist.countDocuments({ userId }),
-          UserExperience.countDocuments({ userId })
+          UserExperience.countDocuments({ userId }),
+          Itinerary.countDocuments({ userId })
         ]);
         
         return {
@@ -303,7 +425,8 @@ router.get("/admin-reports/engagement", auth, isAdmin, async (req, res) => {
           visited,
           wishlist,
           experiences,
-          total: visited + wishlist + experiences
+          itineraries,
+          total: visited + wishlist + experiences + itineraries
         };
       })
     );
@@ -323,7 +446,7 @@ router.get("/admin-reports/engagement", auth, isAdmin, async (req, res) => {
     engagement.forEach((user, index) => {
       doc.fontSize(10).font('Helvetica');
       doc.text(`${index + 1}. ${user.email}`);
-      doc.text(`   Total Activity: ${user.total} (V: ${user.visited}, W: ${user.wishlist}, E: ${user.experiences})`);
+      doc.text(`   Total Activity: ${user.total} (V: ${user.visited}, W: ${user.wishlist}, E: ${user.experiences}, I: ${user.itineraries})`);
       doc.moveDown(0.3);
     });
 
@@ -337,11 +460,12 @@ router.get("/admin-reports/engagement", auth, isAdmin, async (req, res) => {
 // System Statistics Report
 router.get("/admin-reports/system-statistics", auth, isAdmin, async (req, res) => {
   try {
-    const [totalUsers, totalVisited, totalWishlist, totalExperiences] = await Promise.all([
+    const [totalUsers, totalVisited, totalWishlist, totalExperiences, totalItineraries] = await Promise.all([
       User.countDocuments({ isActive: true }),
       Visited.countDocuments(),
       Wishlist.countDocuments(),
-      UserExperience.countDocuments()
+      UserExperience.countDocuments(),
+      Itinerary.countDocuments()
     ]);
 
     const doc = new PDFDocument({ margin: 50 });
@@ -359,8 +483,10 @@ router.get("/admin-reports/system-statistics", auth, isAdmin, async (req, res) =
     doc.text(`Total Visited Countries: ${totalVisited}`);
     doc.text(`Total Wishlisted Countries: ${totalWishlist}`);
     doc.text(`Total Experiences Shared: ${totalExperiences}`);
+    doc.text(`Total Itineraries Created: ${totalItineraries}`);
     doc.text(`Average Visited per User: ${(totalVisited / totalUsers).toFixed(2)}`);
     doc.text(`Average Experiences per User: ${(totalExperiences / totalUsers).toFixed(2)}`);
+    doc.text(`Average Itineraries per User: ${(totalItineraries / totalUsers).toFixed(2)}`);
 
     doc.end();
   } catch (error) {

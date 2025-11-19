@@ -12,9 +12,9 @@ import {
   Title,
   Tooltip,
   Legend,
-  RadialLinearScale
+  RadialLinearScale,
 } from "chart.js";
-import { Pie, Bar, Line, Radar } from "react-chartjs-2";
+import { Pie, Bar, Line, Radar, Doughnut } from "react-chartjs-2";
 import "./UserProfile.css";
 
 // Register ChartJS components
@@ -35,12 +35,13 @@ const UserProfile = () => {
   const { user, updateProfile } = useAuth();
   const [stats, setStats] = useState(null);
   const [profileData, setProfileData] = useState(null);
+  const [itineraryStats, setItineraryStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
-    displayName: ""
+    displayName: "",
   });
 
   useEffect(() => {
@@ -50,17 +51,19 @@ const UserProfile = () => {
   const fetchProfileData = async () => {
     try {
       setLoading(true);
-      const [statsRes, profileRes] = await Promise.all([
+      const [statsRes, profileRes, itineraryStatsRes] = await Promise.all([
         apiClient.get("/api/user-stats/stats"),
-        apiClient.get("/api/user-stats/profile-data")
+        apiClient.get("/api/user-stats/profile-data"),
+        apiClient.get("/api/itineraries/analytics/stats"),
       ]);
 
       setStats(statsRes.data);
       setProfileData(profileRes.data);
+      setItineraryStats(itineraryStatsRes.data);
       setFormData({
         firstName: profileRes.data.user.firstName || "",
         lastName: profileRes.data.user.lastName || "",
-        displayName: profileRes.data.user.displayName || ""
+        displayName: profileRes.data.user.displayName || "",
       });
     } catch (error) {
       console.error("Error fetching profile data:", error);
@@ -84,13 +87,13 @@ const UserProfile = () => {
   const handleDownloadReport = async (reportType) => {
     try {
       const response = await apiClient.get(`/api/reports/${reportType}`, {
-        responseType: 'blob'
+        responseType: "blob",
       });
-      
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
-      link.setAttribute('download', `${reportType}-${Date.now()}.pdf`);
+      link.setAttribute("download", `${reportType}-${Date.now()}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -105,14 +108,14 @@ const UserProfile = () => {
 
     const csvData = [
       ["Country", "Region", "Date Visited"],
-      ...profileData.visited.map(v => [
+      ...profileData.visited.map((v) => [
         v.countryName,
         v.region,
-        new Date(v.dateVisited).toLocaleDateString()
-      ])
+        new Date(v.dateVisited).toLocaleDateString(),
+      ]),
     ];
 
-    const csvContent = csvData.map(row => row.join(",")).join("\n");
+    const csvContent = csvData.map((row) => row.join(",")).join("\n");
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -129,53 +132,124 @@ const UserProfile = () => {
     return <div className="profile-error">Failed to load profile data</div>;
   }
 
-  // Prepare chart data
+  // Prepare chart data for travel experiences
   const regionChartData = {
     labels: Object.keys(stats.visitedByRegion),
-    datasets: [{
-      label: "Countries Visited by Region",
-      data: Object.values(stats.visitedByRegion),
-      backgroundColor: [
-        "#FF6384",
-        "#36A2EB",
-        "#FFCE56",
-        "#4BC0C0",
-        "#9966FF",
-        "#FF9F40"
-      ]
-    }]
+    datasets: [
+      {
+        label: "Countries Visited by Region",
+        data: Object.values(stats.visitedByRegion),
+        backgroundColor: [
+          "#FF6384",
+          "#36A2EB",
+          "#FFCE56",
+          "#4BC0C0",
+          "#9966FF",
+          "#FF9F40",
+        ],
+      },
+    ],
   };
 
   const ratingDistributionData = {
     labels: Object.keys(stats.ratingDistribution),
-    datasets: [{
-      label: "Number of Experiences",
-      data: Object.values(stats.ratingDistribution),
-      backgroundColor: "#4A90E2"
-    }]
+    datasets: [
+      {
+        label: "Number of Experiences",
+        data: Object.values(stats.ratingDistribution),
+        backgroundColor: "#4A90E2",
+      },
+    ],
   };
 
   const timelineData = {
     labels: Object.keys(stats.visitTimeline).sort(),
-    datasets: [{
-      label: "Countries Visited",
-      data: Object.keys(stats.visitTimeline).sort().map(k => stats.visitTimeline[k]),
-      borderColor: "#4A90E2",
-      backgroundColor: "rgba(74, 144, 226, 0.2)",
-      tension: 0.4
-    }]
+    datasets: [
+      {
+        label: "Countries Visited",
+        data: Object.keys(stats.visitTimeline)
+          .sort()
+          .map((k) => stats.visitTimeline[k]),
+        borderColor: "#4A90E2",
+        backgroundColor: "rgba(74, 144, 226, 0.2)",
+        tension: 0.4,
+      },
+    ],
   };
 
   const themeData = {
     labels: Object.keys(stats.themePreferences),
-    datasets: [{
-      label: "Theme Preferences",
-      data: Object.values(stats.themePreferences),
-      backgroundColor: "rgba(74, 144, 226, 0.2)",
-      borderColor: "#4A90E2",
-      borderWidth: 2
-    }]
+    datasets: [
+      {
+        label: "Theme Preferences",
+        data: Object.values(stats.themePreferences),
+        backgroundColor: "rgba(74, 144, 226, 0.2)",
+        borderColor: "#4A90E2",
+        borderWidth: 2,
+      },
+    ],
   };
+
+  // Prepare chart data for itineraries
+  const itineraryExpenseData = itineraryStats
+    ? {
+        labels: Object.keys(itineraryStats.expenseBreakdown),
+        datasets: [
+          {
+            label: "Total Expenses by Category (USD)",
+            data: Object.values(itineraryStats.expenseBreakdown),
+            backgroundColor: [
+              "#FF6384",
+              "#36A2EB",
+              "#FFCE56",
+              "#4BC0C0",
+              "#9966FF",
+            ],
+          },
+        ],
+      }
+    : null;
+
+  const itineraryDestinationData = itineraryStats
+    ? {
+        labels: Object.keys(itineraryStats.destinationBreakdown),
+        datasets: [
+          {
+            label: "Trips by Destination",
+            data: Object.values(itineraryStats.destinationBreakdown),
+            backgroundColor: "#10b981",
+          },
+        ],
+      }
+    : null;
+
+  const itineraryStatusData = itineraryStats
+    ? {
+        labels: Object.keys(itineraryStats.statusBreakdown),
+        datasets: [
+          {
+            label: "Itineraries by Status",
+            data: Object.values(itineraryStats.statusBreakdown),
+            backgroundColor: ["#06b6d4", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6"],
+          },
+        ],
+      }
+    : null;
+
+  const itineraryMonthlyData = itineraryStats
+    ? {
+        labels: Object.keys(itineraryStats.monthlyDistribution),
+        datasets: [
+          {
+            label: "Trips per Month",
+            data: Object.values(itineraryStats.monthlyDistribution),
+            borderColor: "#10b981",
+            backgroundColor: "rgba(16, 185, 129, 0.2)",
+            tension: 0.4,
+          },
+        ],
+      }
+    : null;
 
   return (
     <div className="user-profile-container">
@@ -192,33 +266,49 @@ const UserProfile = () => {
                 type="text"
                 placeholder="First Name"
                 value={formData.firstName}
-                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, firstName: e.target.value })
+                }
               />
               <input
                 type="text"
                 placeholder="Last Name"
                 value={formData.lastName}
-                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, lastName: e.target.value })
+                }
               />
               <input
                 type="text"
                 placeholder="Display Name"
                 value={formData.displayName}
-                onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, displayName: e.target.value })
+                }
               />
               <div className="edit-buttons">
-                <button type="submit" className="btn-save">Save</button>
-                <button type="button" className="btn-cancel" onClick={() => setEditMode(false)}>
+                <button type="submit" className="btn-save">
+                  Save
+                </button>
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => setEditMode(false)}
+                >
                   Cancel
                 </button>
               </div>
             </form>
           ) : (
             <>
-              <h1>{profileData.user.displayName || `${profileData.user.firstName} ${profileData.user.lastName}`}</h1>
+              <h1>
+                {profileData.user.displayName ||
+                  `${profileData.user.firstName} ${profileData.user.lastName}`}
+              </h1>
               <p className="profile-email">{profileData.user.email}</p>
               <p className="profile-member-since">
-                Member since {new Date(profileData.user.createdAt).toLocaleDateString()}
+                Member since{" "}
+                {new Date(profileData.user.createdAt).toLocaleDateString()}
               </p>
               <button className="btn-edit" onClick={() => setEditMode(true)}>
                 Edit Profile
@@ -228,7 +318,7 @@ const UserProfile = () => {
         </div>
       </div>
 
-      {/* Quick Stats */}
+      {/* Quick Stats - Updated with Itinerary Stats */}
       <div className="stats-overview">
         <div className="stat-card">
           <div className="stat-number">{stats.visitedCount}</div>
@@ -243,8 +333,10 @@ const UserProfile = () => {
           <div className="stat-label">Travel Experiences</div>
         </div>
         <div className="stat-card">
-          <div className="stat-number">{stats.averageRating}</div>
-          <div className="stat-label">Average Rating</div>
+          <div className="stat-number">
+            {itineraryStats?.totalItineraries || 0}
+          </div>
+          <div className="stat-label">Planned Itineraries</div>
         </div>
       </div>
 
@@ -254,33 +346,177 @@ const UserProfile = () => {
         <div className="travel-profile-grid">
           <div className="profile-item">
             <span className="profile-label">Favorite Region:</span>
-            <span className="profile-value">{stats.travelProfile.favoriteRegion}</span>
+            <span className="profile-value">
+              {stats.travelProfile.favoriteRegion}
+            </span>
           </div>
           <div className="profile-item">
             <span className="profile-label">Favorite Themes:</span>
-            <span className="profile-value">{stats.travelProfile.favoriteThemes.join(", ") || "None yet"}</span>
+            <span className="profile-value">
+              {stats.travelProfile.favoriteThemes.join(", ") || "None yet"}
+            </span>
           </div>
           <div className="profile-item">
-            <span className="profile-label">Last Activity:</span>
+            <span className="profile-label">Total Trip Days Planned:</span>
             <span className="profile-value">
-              {stats.travelProfile.lastActivity 
-                ? new Date(stats.travelProfile.lastActivity).toLocaleDateString()
-                : "No activity yet"}
+              {itineraryStats?.totalTripDays || 0} days
+            </span>
+          </div>
+          <div className="profile-item">
+            <span className="profile-label">Total Budget Planned:</span>
+            <span className="profile-value">
+              ${itineraryStats?.totalBudget || 0}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Visualizations */}
+      {/* NEW: Itinerary Planning Statistics Section */}
+      {itineraryStats && itineraryStats.totalItineraries > 0 && (
+        <div className="itinerary-section">
+          <h2>🗺️ Trip Planning Analytics</h2>
+
+          <div className="itinerary-stats-cards">
+            <div className="stat-card-small">
+              <div className="stat-icon">✈️</div>
+              <div className="stat-content">
+                <div className="stat-value">
+                  {itineraryStats.totalItineraries}
+                </div>
+                <div className="stat-title">Total Itineraries</div>
+              </div>
+            </div>
+            <div className="stat-card-small">
+              <div className="stat-icon">📅</div>
+              <div className="stat-content">
+                <div className="stat-value">{itineraryStats.totalTripDays}</div>
+                <div className="stat-title">Total Days Planned</div>
+              </div>
+            </div>
+            <div className="stat-card-small">
+              <div className="stat-icon">💰</div>
+              <div className="stat-content">
+                <div className="stat-value">
+                  ${itineraryStats.totalBudget.toLocaleString()}
+                </div>
+                <div className="stat-title">Total Budget</div>
+              </div>
+            </div>
+            <div className="stat-card-small">
+              <div className="stat-icon">📊</div>
+              <div className="stat-content">
+                <div className="stat-value">
+                  ${itineraryStats.avgBudgetPerTrip}
+                </div>
+                <div className="stat-title">Avg Budget/Trip</div>
+              </div>
+            </div>
+            <div className="stat-card-small">
+              <div className="stat-icon">⏱️</div>
+              <div className="stat-content">
+                <div className="stat-value">
+                  {itineraryStats.avgTripDuration} days
+                </div>
+                <div className="stat-title">Avg Trip Duration</div>
+              </div>
+            </div>
+            <div className="stat-card-small">
+              <div className="stat-icon">🎯</div>
+              <div className="stat-content">
+                <div className="stat-value">{itineraryStats.upcomingTrips}</div>
+                <div className="stat-title">Upcoming Trips</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Itinerary Charts */}
+          <div className="charts-grid">
+            {/* Expense Breakdown */}
+            {itineraryExpenseData && (
+              <div className="chart-container">
+                <h3>💸 Total Expenses by Category</h3>
+                <Doughnut
+                  data={itineraryExpenseData}
+                  options={{
+                    maintainAspectRatio: true,
+                    plugins: {
+                      legend: { position: "bottom" },
+                    },
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Destination Breakdown */}
+            {itineraryDestinationData && (
+              <div className="chart-container">
+                <h3>🌍 Trips by Destination</h3>
+                <Bar
+                  data={itineraryDestinationData}
+                  options={{
+                    maintainAspectRatio: true,
+                    scales: {
+                      y: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1 },
+                      },
+                    },
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Status Breakdown */}
+            {itineraryStatusData && (
+              <div className="chart-container">
+                <h3>📋 Itineraries by Status</h3>
+                <Pie
+                  data={itineraryStatusData}
+                  options={{
+                    maintainAspectRatio: true,
+                    plugins: {
+                      legend: { position: "bottom" },
+                    },
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Monthly Distribution */}
+            {itineraryMonthlyData && (
+              <div className="chart-container full-width">
+                <h3>📆 Trip Planning Timeline</h3>
+                <Line
+                  data={itineraryMonthlyData}
+                  options={{
+                    maintainAspectRatio: true,
+                    scales: {
+                      y: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1 },
+                      },
+                    },
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Travel Experience Visualizations */}
       <div className="visualizations-section">
-        <h2>Your Travel Analytics</h2>
-        
+        <h2>📊 Your Travel Analytics</h2>
+
         <div className="charts-grid">
           {/* Chart 1: Regional Distribution */}
           {Object.keys(stats.visitedByRegion).length > 0 && (
             <div className="chart-container">
               <h3>Countries by Region</h3>
-              <Pie data={regionChartData} options={{ maintainAspectRatio: true }} />
+              <Pie
+                data={regionChartData}
+                options={{ maintainAspectRatio: true }}
+              />
             </div>
           )}
 
@@ -288,16 +524,16 @@ const UserProfile = () => {
           {stats.experiencesCount > 0 && (
             <div className="chart-container">
               <h3>Rating Distribution</h3>
-              <Bar 
+              <Bar
                 data={ratingDistributionData}
                 options={{
                   maintainAspectRatio: true,
                   scales: {
                     y: {
                       beginAtZero: true,
-                      ticks: { stepSize: 1 }
-                    }
-                  }
+                      ticks: { stepSize: 1 },
+                    },
+                  },
                 }}
               />
             </div>
@@ -307,16 +543,16 @@ const UserProfile = () => {
           {Object.keys(stats.visitTimeline).length > 0 && (
             <div className="chart-container full-width">
               <h3>Travel Timeline</h3>
-              <Line 
+              <Line
                 data={timelineData}
                 options={{
                   maintainAspectRatio: true,
                   scales: {
                     y: {
                       beginAtZero: true,
-                      ticks: { stepSize: 1 }
-                    }
-                  }
+                      ticks: { stepSize: 1 },
+                    },
+                  },
                 }}
               />
             </div>
@@ -326,16 +562,16 @@ const UserProfile = () => {
           {Object.keys(stats.themePreferences).length > 0 && (
             <div className="chart-container">
               <h3>Travel Theme Preferences</h3>
-              <Radar 
+              <Radar
                 data={themeData}
                 options={{
                   maintainAspectRatio: true,
                   scales: {
                     r: {
                       beginAtZero: true,
-                      ticks: { stepSize: 1 }
-                    }
-                  }
+                      ticks: { stepSize: 1 },
+                    },
+                  },
                 }}
               />
             </div>
@@ -343,21 +579,36 @@ const UserProfile = () => {
         </div>
       </div>
 
-      {/* Download Reports Section */}
+      {/* Download Reports Section - Updated */}
       <div className="reports-section">
-        <h2>Download Your Travel Reports</h2>
+        <h2>📥 Download Your Travel Reports</h2>
         <div className="reports-grid">
-          <button className="report-btn" onClick={() => handleDownloadReport("travel-summary")}>
+          <button
+            className="report-btn"
+            onClick={() => handleDownloadReport("travel-summary")}
+          >
             📄 Travel Summary PDF
           </button>
-          <button className="report-btn" onClick={() => handleDownloadReport("experience-journal")}>
+          <button
+            className="report-btn"
+            onClick={() => handleDownloadReport("experience-journal")}
+          >
             📖 Experience Journal PDF
+          </button>
+          <button
+            className="report-btn"
+            onClick={() => handleDownloadReport("statistics")}
+          >
+            📈 Statistics Report PDF
+          </button>
+          <button
+            className="report-btn"
+            onClick={() => handleDownloadReport("itinerary-report")}
+          >
+            🗺️ Itinerary Planning Report PDF
           </button>
           <button className="report-btn" onClick={handleExportCSV}>
             📊 Countries CSV Export
-          </button>
-          <button className="report-btn" onClick={() => handleDownloadReport("statistics")}>
-            📈 Statistics Report PDF
           </button>
         </div>
       </div>
@@ -368,7 +619,11 @@ const UserProfile = () => {
         <div className="countries-grid">
           {profileData.visited.map((country) => (
             <div key={country._id} className="country-card">
-              <img src={country.flagUrl} alt={country.countryName} className="country-flag" />
+              <img
+                src={country.flagUrl}
+                alt={country.countryName}
+                className="country-flag"
+              />
               <div className="country-info">
                 <h4>{country.countryName}</h4>
                 <p>{country.region}</p>
@@ -387,7 +642,11 @@ const UserProfile = () => {
         <div className="countries-grid">
           {profileData.wishlist.map((country) => (
             <div key={country._id} className="country-card wishlist">
-              <img src={country.flagUrl} alt={country.countryName} className="country-flag" />
+              <img
+                src={country.flagUrl}
+                alt={country.countryName}
+                className="country-flag"
+              />
               <div className="country-info">
                 <h4>{country.countryName}</h4>
                 <p>{country.region}</p>
@@ -408,9 +667,7 @@ const UserProfile = () => {
             <div key={exp._id} className="experience-card">
               <div className="experience-header">
                 <h3>{exp.country}</h3>
-                <div className="experience-rating">
-                  ⭐ {exp.rating}/10
-                </div>
+                <div className="experience-rating">⭐ {exp.rating}/10</div>
               </div>
               <p className="experience-text">{exp.experience}</p>
               <div className="experience-meta">
@@ -418,7 +675,8 @@ const UserProfile = () => {
                   {exp.themes.join(", ")}
                 </span>
                 <span className="experience-dates">
-                  {new Date(exp.fromDate).toLocaleDateString()} - {new Date(exp.toDate).toLocaleDateString()}
+                  {new Date(exp.fromDate).toLocaleDateString()} -{" "}
+                  {new Date(exp.toDate).toLocaleDateString()}
                 </span>
               </div>
             </div>
@@ -436,7 +694,9 @@ const UserProfile = () => {
                 <span className="rank">#{index + 1}</span>
                 <span className="country-name">{country.country}</span>
                 <span className="rating">⭐ {country.averageRating}/10</span>
-                <span className="count">({country.count} experience{country.count > 1 ? 's' : ''})</span>
+                <span className="count">
+                  ({country.count} experience{country.count > 1 ? "s" : ""})
+                </span>
               </div>
             ))}
           </div>

@@ -15,11 +15,6 @@ const WorldExplorerLanding = () => {
       description: "Click directly on any country or use smart filters to begin your exploration journey"
     },
     {
-      icon: <Trophy size={48} />,
-      title: "Country Trivia Games",
-      description: "Test your knowledge with engaging quizzes on geography, culture, and history"
-    },
-    {
       icon: <Newspaper size={48} />,
       title: "Live News & Weather",
       description: "Stay updated with real-time news and weather conditions from around the globe"
@@ -199,27 +194,6 @@ const WorldExplorerLanding = () => {
               </div>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="cta-section">
-        <div className="cta-container">
-          <div className="cta-emoji">🚀</div>
-          
-          <h2 className="cta-title">
-            Ready to Explore the World?
-          </h2>
-          
-          <p className="cta-description">
-            Join thousands of explorers discovering cultures, testing knowledge, and traveling the world from home
-          </p>
-          
-          <button className="cta-button" onClick={handleStartJourney}>
-            <Zap size={20} />
-            Start Your Journey
-            <ArrowRight size={20} />
-          </button>
         </div>
       </section>
 

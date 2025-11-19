@@ -5,7 +5,6 @@ import Navbar from "./components/Navbar";
 import CurrencyConverter from "./components/CurrencyConverter";
 import NewsFeed from "./components/NewsFeed";
 import ItineraryModule from "./components/ItineraryModule";
-import TriviaModule from "./components/TriviaModule";
 import ItineraryPlanner from "./components/ItineraryPlanner";
 import ItineraryDashboard from "./components/ItineraryDashboard/ItineraryDashboard";
 import RoampediaMap from './components/RoampediaMap';
@@ -25,7 +24,6 @@ function App() {
         <Route path="/news" element={<NewsFeed />} />
         <Route path="/currency" element={<CurrencyConverter />} />
         <Route path="/itinerary" element={<ItineraryModule />} />
-        <Route path="/trivia" element={<TriviaModule />} />
         <Route path="/itineraryplanner" element={<ItineraryPlanner />} />
         <Route path="/itinerarydashboard" element={<ItineraryDashboard />} />
         <Route path="/map" element={<RoampediaMap />} />
